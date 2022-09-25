@@ -1,0 +1,112 @@
+- name: Prepare
+  hosts: all, !runner
+  become: True
+  gather_subset: min
+    
+  tasks:
+    - name: initial
+      include_role:
+        name: initial
+
+- name: install PostgreSQL 11 on Centos
+  hosts: postgres-centos
+  become: True
+  gather_facts: no
+
+  tasks:
+    - name: install postgres
+      include_role:
+        name: postgresql
+      
+    - name: Create pgsqlcentos user
+      become_user: postgres
+      postgresql_user:
+        name: pgsqlcentos
+        password: 12345
+        role_attr_flags: SUPERUSER
+      tags:
+        - postgresuser
+
+    - name: Grant access user pgsqlcentos 
+      postgresql_pg_hba:
+        dest: /var/lib/pgsql/11/data/pg_hba.conf
+        contype: host
+        users: pgsqlcentos
+        source: 127.0.0.1
+        databases: all
+        method: md5
+        create: true
+      tags:
+        - postgresuser
+
+    - name: Reload PostgreSQL
+      service: 
+        name: postgresql-11
+        state: reloaded
+      tags:
+        - postgresuser
+
+- name: install Postgres 12 on ubuntu18
+  hosts: postgres-ubuntu18
+  become: True
+  gather_facts: no
+
+  tasks:
+    - name: install postgres
+      include_role:
+        name: postgresql
+
+    - name: Create pgsqlubuntu18 user
+      become_user: postgres
+      postgresql_user:
+        name: pgsqlubuntu18
+        password: 12345
+        role_attr_flags: SUPERUSER
+      tags:
+        - postgresuser18
+
+    - name: Grant access user pgsqlubuntu18  #psql -U pgsqlubuntu18 postgres -h 127.0.0.1
+      postgresql_pg_hba:
+        dest: /etc/postgresql/12/main/pg_hba.conf
+        contype: host
+        users: pgsqlubuntu18
+        source: 127.0.0.1
+        databases: all
+        method: md5
+        create: true
+      tags:
+        - postgresuser18
+
+    - name: Reload PostgreSQL
+      service: 
+        name: postgresql
+        state: reloaded
+      tags:
+        - postgresuser18
+
+      
+
+- name: Prepare host ubuntu20
+  hosts: postgres-ubuntu20
+  become: True
+  gather_facts: no
+
+  tasks:
+    - name: install gcc
+      apt:
+        name: 
+          - build-essential
+          - libreadline-dev
+          - zlib1g-dev
+
+    - name: Unarchive a file that needs to be downloaded (added in 2.0)
+      unarchive:
+        src: https://ftp.postgresql.org/pub/source/v13.1/postgresql-13.1.tar.gz
+        dest: /opt
+        remote_src: yes
+      tags:
+        - postgresuser20
+      
+    #manual part
+
+        
