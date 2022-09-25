@@ -1,0 +1,9 @@
+[postgres-centos]
+142.93.139.217 ansible_become_pass=bxxmsdzzzoci ansible_user=user ansible_python_interpreter=/bin/python #fucking centos
+[postgres-ubuntu18]
+188.166.24.169 ansible_become_pass=cehczcbvpaaz ansible_user=user
+[postgres-ubuntu20]
+159.223.212.200 ansible_become_pass=pplhxitnjzyd ansible_user=user
+
+[runner]
+localhost
