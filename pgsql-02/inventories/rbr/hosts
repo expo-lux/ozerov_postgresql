@@ -1,0 +1,5 @@
+[postgres]
+178.62.239.170 ansible_become_pass=cfwcmxkmqfhu ansible_user=user
+
+[runner]
+localhost
