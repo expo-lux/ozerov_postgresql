@@ -14,11 +14,11 @@
   gather_facts: no
 
   tasks:
-    - name: install postgres
+    - name: 1. install postgres
       include_role:
         name: postgresql
 
-    - name: Create root user in postgres
+    - name: 2. Create root user in postgres
       become_user: postgres
       postgresql_user:
         name: root
@@ -27,7 +27,18 @@
       tags:
         - postgresuser
 
-    - name: Create rebrain_admin user in postgres
+    - name: 3. Drop rebrain_courses_db
+      become_user: postgres
+      community.postgresql.postgresql_db:
+        name: rebrain_courses_db
+        state: absent
+
+    - name: 3. Create database rebrain_courses_db 
+      become_user: postgres
+      postgresql_db:
+        name: rebrain_courses_db
+
+    - name: 4. Create rebrain_admin user in postgres
       become_user: postgres
       postgresql_user:
         name: rebrain_admin
@@ -54,18 +65,7 @@
         name: postgresql
         state: reloaded
 
-    - name: Drop rebrain_courses_db
-      become_user: postgres
-      community.postgresql.postgresql_db:
-        name: rebrain_courses_db
-        state: absent
-
-    - name: Create database rebrain_courses_db 
-      become_user: postgres
-      postgresql_db:
-        name: rebrain_courses_db
-
-    - name: GRANT ALL PRIVILEGES ON DATABASE rebrain_courses_db TO rebrain_admin
+    - name: 5. GRANT ALL PRIVILEGES ON DATABASE rebrain_courses_db TO rebrain_admin
       become_user: postgres
       community.postgresql.postgresql_privs:
         db: rebrain_courses_db
@@ -83,7 +83,7 @@
         - users_courses.sql
         - insert.sql
         
-    - name: Run queries from SQL script
+    - name: 6-9. Run queries from SQL script
       postgresql_query:
         login_host: localhost
         login_user: rebrain_admin
@@ -96,37 +96,37 @@
         - /opt/users_courses.sql
         - /opt/insert.sql
       
-    - name: Add new user
+    - name: 10. Add new user
       postgresql_query:
         login_host: localhost
         login_user: rebrain_admin
         login_password: 12345
         db: rebrain_courses_db
         query: |
-          INSERT INTO users(user_id,username,email,mobile_phone,firstname,lastname,city,is_curator,record_date) 
-          VALUES ('12','vladon','Vladislav.Pirushin@gmail.com','+79817937545','Vladislav','Pirushin',NULL,'false',CURRENT_TIMESTAMP)
+          INSERT INTO users(username,email,mobile_phone,firstname,lastname,city,is_curator,record_date) 
+          VALUES ('vladon','Vladislav.Pirushin@gmail.com','+79817937545','Vladislav','Pirushin',NULL,'false',CURRENT_TIMESTAMP)
           ON CONFLICT DO NOTHING      
     
-    - name: Add new course
+    - name: 11. Add new course
       postgresql_query:
         login_host: localhost
         login_user: rebrain_admin
         login_password: 12345
         db: rebrain_courses_db
         query: |
-          INSERT INTO courses(course_id,coursename,tasks_count,price)
-          VALUES ('9','Postgresql','14','7900')
+          INSERT INTO courses(coursename,tasks_count,price)
+          VALUES ('Postgresql','14','7900')
           ON CONFLICT DO NOTHING
 
-    - name: Add new user-course link
+    - name: 12. Add new user-course link
       postgresql_query:
         login_host: localhost
         login_user: rebrain_admin
         login_password: 12345
         db: rebrain_courses_db
         query: |
-          INSERT INTO users__courses(id,user_id,course_id)
-          VALUES ('11','3','6')
+          INSERT INTO users__courses(user_id,course_id)
+          VALUES ('3','6')
           ON CONFLICT DO NOTHING
 
     - name: create directory
@@ -135,7 +135,7 @@
         state: directory
         mode: '0777'
         
-    - name: Copy data from courses
+    - name: 13. Copy data from courses
       # become_user: postgres
       postgresql_copy:
         login_host: localhost
@@ -148,7 +148,7 @@
           format: csv
           header: true
 
-    - name: Copy data from users
+    - name: 14. Copy data from users
       postgresql_copy:
         login_host: localhost
         login_user: root
@@ -160,7 +160,7 @@
           format: csv
           header: true
 
-    - name: Delete data for user yodajedi
+    - name: 15. Delete data for user yodajedi
       postgresql_query:
         login_host: localhost
         login_user: rebrain_admin
@@ -169,7 +169,7 @@
         query: |
           DELETE FROM users WHERE username='yodajedi'
 
-    - name: Update price for Postgres course
+    - name: 16. Update price for Postgres course
       postgresql_query:
         login_host: localhost
         login_user: rebrain_admin
@@ -178,7 +178,7 @@
         query: |
           UPDATE courses SET price=10000 WHERE coursename='Postgresql'
 
-    - name: Update user data
+    - name: 17. Update user data
       postgresql_query:
         login_host: localhost
         login_user: rebrain_admin
@@ -188,7 +188,7 @@
           UPDATE users SET is_curator='true' WHERE lastname='Pirushin'
 
     
-    - name: DUMP left outer join
+    - name: 18. DUMP left outer join
       postgresql_copy:
         login_host: localhost
         login_user: root
@@ -200,7 +200,7 @@
           format: csv
           header: true
 
-    - name: DUMP right outer join
+    - name: 19. DUMP right outer join
       postgresql_copy:
         login_host: localhost
         login_user: root
@@ -210,10 +210,9 @@
         copy_to: /tmp/answers/RIGHT_OUTER_JOIN
         options:
           format: csv
-          header: true
-        
+          header: true        
 
-    - name: dump database
+    - name: 20. dump database
       become_user: postgres
       community.postgresql.postgresql_db:
         login_host: localhost
@@ -223,7 +222,7 @@
         state: dump
         target: /tmp/rebrain_courses_db.sql.bqp
 
-    - name: save dump
+    - name: 21. save dump
       ansible.builtin.fetch:
         src: /tmp/rebrain_courses_db.sql.bqp
         dest: files

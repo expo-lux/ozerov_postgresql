@@ -175,17 +175,17 @@ COPY public.courses (course_id, coursename, tasks_count, price) FROM stdin;
 --
 
 COPY public.users (user_id, username, email, mobile_phone, firstname, lastname, city, is_curator, record_date) FROM stdin;
-1	admin	vasiliy_ozerov@mail.com	+79111937483	Vasiliy	Ozerov	Moscow	t	2022-10-01 00:19:46.072114
-2	pricex	SimonWels@mail.com	+79111974384	Simon	Wels	London	f	2022-10-01 00:19:46.072114
-3	MaytheForcebewithyou	Leya.Organa@newrepublic.com	+79991916526	Leya	Organa	Alderaan	f	2022-10-01 00:19:46.072114
-5	herion1	Sabur03@yandex.ru	+79110983475	Sabur	Gagiev	Kazan	f	2022-10-01 00:19:46.072114
-6	pusha	Liliana_Sal@yandex.ru	+79115897438	Liliana	Salohina	SPB	f	2022-10-01 00:19:46.072114
-7	vierjohn	xen_power@mail.com	+79112232134	John	Seltic	NULL	f	2022-10-01 00:19:46.072114
-8	trakstars	Pronina@mail.ru	+79811987483	Varya	Pronina	Moscow	f	2022-10-01 00:19:46.072114
-9	vozilla	Maxxx@mail.ru	+79111047854	Max	Visikov	NULL	f	2022-10-01 00:19:46.072114
-10	Kisa007	Kisa007@mail.ru	+79112405972	Raya	Simonova	Tver	f	2022-10-01 00:19:46.072114
-11	greenball	maike.greenball.vazovsky@corp.com	+79112425872	Mike	Vazovsky	Monstertown	f	2022-10-01 00:19:46.072114
-12	vladon	Vladislav.Pirushin@gmail.com	+79817937545	Vladislav	Pirushin	\N	t	2022-10-01 00:19:46.61097
+1	admin	vasiliy_ozerov@mail.com	+79111937483	Vasiliy	Ozerov	Moscow	t	2022-10-04 21:43:21.236599
+2	pricex	SimonWels@mail.com	+79111974384	Simon	Wels	London	f	2022-10-04 21:43:21.236599
+3	MaytheForcebewithyou	Leya.Organa@newrepublic.com	+79991916526	Leya	Organa	Alderaan	f	2022-10-04 21:43:21.236599
+5	herion1	Sabur03@yandex.ru	+79110983475	Sabur	Gagiev	Kazan	f	2022-10-04 21:43:21.236599
+6	pusha	Liliana_Sal@yandex.ru	+79115897438	Liliana	Salohina	SPB	f	2022-10-04 21:43:21.236599
+7	vierjohn	xen_power@mail.com	+79112232134	John	Seltic	NULL	f	2022-10-04 21:43:21.236599
+8	trakstars	Pronina@mail.ru	+79811987483	Varya	Pronina	Moscow	f	2022-10-04 21:43:21.236599
+9	vozilla	Maxxx@mail.ru	+79111047854	Max	Visikov	NULL	f	2022-10-04 21:43:21.236599
+10	Kisa007	Kisa007@mail.ru	+79112405972	Raya	Simonova	Tver	f	2022-10-04 21:43:21.236599
+11	greenball	maike.greenball.vazovsky@corp.com	+79112425872	Mike	Vazovsky	Monstertown	f	2022-10-04 21:43:21.236599
+12	vladon	Vladislav.Pirushin@gmail.com	+79817937545	Vladislav	Pirushin	\N	t	2022-10-04 21:43:21.832578
 \.
 
 
@@ -212,21 +212,21 @@ COPY public.users__courses (id, user_id, course_id) FROM stdin;
 -- Name: courses_course_id_seq; Type: SEQUENCE SET; Schema: public; Owner: rebrain_admin
 --
 
-SELECT pg_catalog.setval('public.courses_course_id_seq', 1, false);
+SELECT pg_catalog.setval('public.courses_course_id_seq', 9, true);
 
 
 --
 -- Name: users__courses_id_seq; Type: SEQUENCE SET; Schema: public; Owner: rebrain_admin
 --
 
-SELECT pg_catalog.setval('public.users__courses_id_seq', 1, false);
+SELECT pg_catalog.setval('public.users__courses_id_seq', 11, true);
 
 
 --
 -- Name: users_user_id_seq; Type: SEQUENCE SET; Schema: public; Owner: rebrain_admin
 --
 
-SELECT pg_catalog.setval('public.users_user_id_seq', 1, false);
+SELECT pg_catalog.setval('public.users_user_id_seq', 12, true);
 
 
 --
