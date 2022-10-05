@@ -1,0 +1,7 @@
+postgresql_version: 13
+postgresql_flavor: pgdg
+postgresql_conf:
+      - listen_addresses: "'0.0.0.0'"
+
+postgresql_pg_hba_conf:
+      - host all all {{ public_ip }}/32 md5

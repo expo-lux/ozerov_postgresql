@@ -1,0 +1,5 @@
+[postgres]
+188.166.1.123 ansible_become_pass=vmirkpleoxvq ansible_user=user
+
+[runner]
+localhost

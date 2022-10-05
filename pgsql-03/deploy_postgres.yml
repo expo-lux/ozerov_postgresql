@@ -1,0 +1,237 @@
+- name: Prepare
+  hosts: all, !runner
+  become: True
+  gather_subset: min
+    
+  tasks:
+    - name: initial
+      include_role:
+        name: initial
+
+- name: install Postgres 13 on ubuntu18
+  hosts: postgres
+  become: True
+  gather_facts: no
+
+  tasks:
+
+    - name: get my public ip
+      uri: 
+        url: http://icanhazip.com
+        return_content: yes
+      delegate_to: "{{ groups['runner'][0] }}"
+      register: my_ip
+
+    - set_fact: public_ip="{{ my_ip['content'] | trim }}"
+
+    - name: block 5432 port for all
+      iptables:
+        action: append
+        chain: INPUT
+        in_interface: eth0
+        protocol: tcp
+        destination_port: "5432"
+        jump: DROP
+
+    - name: allow 5432 port for my public IP
+      iptables:
+        action: insert
+        source: "{{ public_ip }}"
+        chain: INPUT
+        in_interface: eth0
+        protocol: tcp
+        destination_port: "5432"
+        jump: ACCEPT
+
+    - name: install postgres
+      include_role:
+        name: postgresql
+
+    - name: restart postgres
+      systemd:
+        name: postgresql@13-main.service
+        state: restarted
+
+    - name: Create root user in postgres
+      become_user: postgres
+      postgresql_user:
+        name: root
+        password: 12345
+        role_attr_flags: SUPERUSER
+      tags:
+        - postgresuser
+
+    - name: Create rebrain_admin user in postgres
+      become_user: postgres
+      postgresql_user:
+        name: rebrain_admin
+        password: 12345
+        # role_attr_flags: SUPERUSER
+      tags:
+        - postgresuser
+
+    - name: Drop rebrain_courses_db
+      become_user: postgres
+      community.postgresql.postgresql_db:
+        name: rebrain_courses_db
+        state: absent
+
+    - name: Create database rebrain_courses_db 
+      become_user: postgres
+      postgresql_db:
+        name: rebrain_courses_db
+    
+    - name: GRANT ALL PRIVILEGES ON DATABASE rebrain_courses_db TO rebrain_admin and root
+      become_user: postgres
+      community.postgresql.postgresql_privs:
+        db: rebrain_courses_db
+        privs: ALL
+        type: database
+        role: rebrain_admin
+      loop:
+        - rebrain_admin
+        - root
+
+    - name: copy files
+      copy:
+        dest: /tmp
+        src:  "files/{{ item }}"
+      loop:
+        - rebrain_courses_db.sql.bqp
+        - auditlog.sql
+        - fnc_auditlog_users_insert.sql
+        - trigger.sql
+        - insert.sql
+        - view.sql
+
+    - name: 7. Restore database
+      become_user: postgres
+      community.postgresql.postgresql_db:
+        login_host: localhost
+        login_user: root
+        login_password: 12345
+        name: rebrain_courses_db
+        state: restore
+        target: /tmp/rebrain_courses_db.sql.bqp
+
+    - name: 9. Check data in users table 
+      postgresql_query:
+        login_host: localhost
+        login_user: rebrain_admin
+        login_password: 12345
+        db: rebrain_courses_db
+        query: |
+          SELECT count(*) from users;
+      register: table_count
+      failed_when: table_count['query_result'][0]['count'] != 11
+
+    - name: 9. Check data in courses table 
+      postgresql_query:
+        login_host: localhost
+        login_user: rebrain_admin
+        login_password: 12345
+        db: rebrain_courses_db
+        query: |
+          SELECT count(*) from courses;
+      register: table_count
+      failed_when: table_count['query_result'][0]['count'] != 9
+
+    - name: 9. Check data in users__courses table 
+      postgresql_query:
+        login_host: localhost
+        login_user: rebrain_admin
+        login_password: 12345
+        db: rebrain_courses_db
+        query: |
+          SELECT count(*) from users__courses;
+      register: table_count
+      failed_when: table_count['query_result'][0]['count'] != 11
+
+    - name: create directory
+      file:
+        path: /tmp/answers
+        state: directory
+        mode: 0777
+
+    - name: 10. window function 
+      postgresql_copy:
+        login_host: localhost
+        login_user: root
+        login_password: 12345
+        db: rebrain_courses_db
+        src: 'SELECT * , sum(price) OVER () FROM courses'
+        copy_to: /tmp/answers/devops_old_price
+        options:
+          format: csv
+          header: true
+
+    - name: 11. Update 'Devops' course price
+      postgresql_query:
+        login_host: localhost
+        login_user: rebrain_admin
+        login_password: 12345
+        db: rebrain_courses_db
+        query: |
+          UPDATE courses set price=100000 where coursename = 'Devops';        
+
+    - name: 12. Window function with increment
+      postgresql_copy:
+        login_host: localhost
+        login_user: root
+        login_password: 12345
+        db: rebrain_courses_db
+        options:
+          format: csv
+          header: true
+        src: 'SELECT *, sum(price) OVER (order by price) FROM courses'
+        copy_to: /tmp/answers/devops_new_price
+
+    - name: 13. Create new table auditlog
+      postgresql_query:
+        login_host: localhost
+        login_user: rebrain_admin
+        login_password: 12345
+        db: rebrain_courses_db
+        path_to_script: /tmp/auditlog.sql
+
+    - name: 14. Create fnc_auditlog_users_insert
+      postgresql_query:
+        login_host: localhost
+        login_user: rebrain_admin
+        login_password: 12345
+        db: rebrain_courses_db
+        path_to_script: /tmp/fnc_auditlog_users_insert.sql
+
+    - name: 15. Create trigger on insert in users table
+      postgresql_query:
+        login_host: localhost
+        login_user: rebrain_admin
+        login_password: 12345
+        db: rebrain_courses_db
+        path_to_script: /tmp/trigger.sql
+
+    - name: 16. Create 15 users
+      postgresql_query:
+        login_host: localhost
+        login_user: rebrain_admin
+        login_password: 12345
+        db: rebrain_courses_db
+        path_to_script: /tmp/insert.sql
+
+    - name: 17. Create view get_last_10_records_from_auditlog
+      postgresql_query:
+        login_host: localhost
+        login_user: rebrain_admin
+        login_password: 12345
+        db: rebrain_courses_db
+        path_to_script: /tmp/view.sql
+
+    - name: 18. dump database
+      become_user: postgres
+      community.postgresql.postgresql_db:
+        login_host: localhost
+        login_user: root
+        login_password: 12345
+        name: rebrain_courses_db
+        state: dump
+        target: /tmp/rebrain_courses_db_task03.sql.bqp
