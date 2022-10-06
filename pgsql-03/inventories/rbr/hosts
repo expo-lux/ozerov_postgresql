@@ -1,5 +1,5 @@
 [postgres]
-188.166.1.123 ansible_become_pass=vmirkpleoxvq ansible_user=user
+146.190.227.172 ansible_become_pass=uwsoiehhnisk ansible_user=user
 
 [runner]
 localhost
