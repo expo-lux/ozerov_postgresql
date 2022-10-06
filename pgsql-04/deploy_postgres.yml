@@ -1,0 +1,240 @@
+- name: Prepare
+  hosts: all, !runner
+  become: True
+  gather_subset: min
+    
+  tasks:
+    - name: initial
+      include_role:
+        name: initial
+
+- name: install Postgres 13 on ubuntu18
+  hosts: postgres
+  become: True
+  gather_facts: no
+
+  tasks:
+
+    - name: get my public ip
+      uri: 
+        url: http://icanhazip.com
+        return_content: yes
+      delegate_to: "{{ groups['runner'][0] }}"
+      register: my_ip
+
+    - set_fact: public_ip="{{ my_ip['content'] | trim }}"
+
+    - name: block 5432 port for all
+      iptables:
+        action: append
+        chain: INPUT
+        in_interface: eth0
+        protocol: tcp
+        destination_port: "5432"
+        jump: DROP
+
+    - name: allow 5432 port for my public IP
+      iptables:
+        action: insert
+        source: "{{ public_ip }}"
+        chain: INPUT
+        in_interface: eth0
+        protocol: tcp
+        destination_port: "5432"
+        jump: ACCEPT
+
+    - name: install postgres
+      include_role:
+        name: postgresql
+
+    - name: restart postgres
+      systemd:
+        name: postgresql@13-main.service
+        state: restarted
+
+    - name: 2. Create root user in postgres
+      become_user: postgres
+      postgresql_user:
+        name: root
+        password: 12345
+        role_attr_flags: SUPERUSER
+      tags:
+        - postgresuser
+
+    - name: 4. Drop rebrain_courses_db
+      become_user: postgres
+      community.postgresql.postgresql_db:
+        name: rebrain_courses_db
+        state: absent
+
+    - name: 4. Create database rebrain_courses_db 
+      become_user: postgres
+      postgresql_db:
+        name: rebrain_courses_db
+        owner: root
+    
+    - name: 5. Create rebrain_admin user in postgres
+      become_user: postgres
+      postgresql_user:
+        name: rebrain_admin
+        password: 12345
+
+    - name: 6. copy files to server
+      copy:
+        dest: /tmp
+        src:  "files/{{ item }}"
+      loop:
+        - rebrain_courses_db.sql.bqp
+        - blog.sql
+
+    - name: 7. Restore database
+      community.postgresql.postgresql_db:
+        login_host: localhost
+        login_user: root
+        login_password: 12345
+        name: rebrain_courses_db
+        state: restore
+        target: /tmp/rebrain_courses_db.sql.bqp
+    
+    - name: 8. GRANT ALL PRIVILEGES ON DATABASE rebrain_courses_db TO rebrain_admin 
+      become_user: postgres
+      community.postgresql.postgresql_privs:
+        db: rebrain_courses_db
+        privs: ALL
+        type: database
+        role: rebrain_admin
+      loop:
+        - rebrain_admin
+
+    - name: 9. Create role backup
+      become_user: postgres
+      postgresql_user:
+        name: backup
+        role_attr_flags: NOLOGIN
+
+    - name: 11. GRANT USAGE ON SCHEMA public TO rebrain_admin
+      postgresql_query:
+        login_host: localhost
+        login_user: root
+        login_password: 12345
+        db: rebrain_courses_db
+        query: |
+          GRANT USAGE ON SCHEMA public TO rebrain_admin;
+
+#проверка: psql -c "\ddp" -d rebrain_courses_db | grep "backup=r/rebrain_admin"
+    - name: 11. ALTER DEFAULT PRIVILEGES  роли backup права SELECT на вновь создаваемые таблицы пользователем rebrain_admin в схеме public
+      postgresql_query:
+        login_host: localhost
+        login_user: root
+        login_password: 12345
+        db: rebrain_courses_db
+        query: |
+          ALTER DEFAULT PRIVILEGES FOR role rebrain_admin IN SCHEMA public GRANT SELECT ON TABLES TO backup;
+
+    - name: 12, 13. Create table blog
+      postgresql_query:
+        login_host: 127.0.0.1
+        login_user: rebrain_admin
+        login_password: 12345
+        db: rebrain_courses_db
+        path_to_script: /tmp/blog.sql
+
+    - name: 14. insert into blog
+      postgresql_query:
+        login_host: 127.0.0.1
+        login_user: rebrain_admin
+        login_password: 12345
+        db: rebrain_courses_db
+        query: |
+          INSERT INTO blog(user_id,blog_text)
+          VALUES (1,'We are studying at the REBRAIN PostgreSQL Workshop')
+          ON CONFLICT DO NOTHING;
+
+    - name: 15, 16. Create role rebrain_group_select_access
+      postgresql_user:
+        login_host: localhost
+        login_user: root
+        login_password: 12345
+        db: rebrain_courses_db
+        name: rebrain_group_select_access
+        role_attr_flags: NOLOGIN
+
+    - name: 17. GRANT USAGE ON SCHEMA public TO rebrain_group_select_access
+      postgresql_query:
+        login_host: localhost
+        login_user: root
+        login_password: 12345
+        db: rebrain_courses_db
+        query: |
+          GRANT USAGE ON SCHEMA public TO rebrain_group_select_access;
+
+    - name: 18. Grant select to rebrain_group_select_access
+      postgresql_query:
+        login_host: localhost
+        login_user: root
+        login_password: 12345
+        db: rebrain_courses_db
+        query: |
+          GRANT SELECT ON ALL TABLES IN SCHEMA public to rebrain_group_select_access;
+
+    - name: 19. Create role rebrain_user
+      become_user: postgres
+      postgresql_user:
+        name: rebrain_user
+        role_attr_flags: NOLOGIN
+      
+    - name: 20. Add rebrain_user to rebrain_group_select_access
+      postgresql_query:
+        login_host: localhost
+        login_user: root
+        login_password: 12345
+        db: rebrain_courses_db
+        query: |
+          GRANT rebrain_user TO rebrain_group_select_access;
+
+    - name: 22. Create role rebrain_portal
+      become_user: postgres
+      postgresql_user:
+        name: rebrain_portal
+        role_attr_flags: NOLOGIN
+
+    - name: 23. Create schema rebrain_portal in rebrain_courses_db
+      postgresql_query:
+        login_host: localhost
+        login_user: root
+        login_password: 12345
+        db: rebrain_courses_db
+        query: |    
+          CREATE SCHEMA IF NOT EXISTS rebrain_portal;
+
+    - name: 24. Grant access on schema rebrain_portal to user rebrain_portal
+      postgresql_query:
+        login_host: localhost
+        login_user: root
+        login_password: 12345
+        db: rebrain_courses_db
+        query: |
+          GRANT USAGE ON SCHEMA rebrain_portal TO rebrain_portal;
+
+
+#проверка psql -c "\dn+" -d rebrain_courses_db | grep -w "rebrain_portal"
+    - name: 25. Grant all privs to rebrain_portal 
+      postgresql_query:
+        login_host: localhost
+        login_user: root
+        login_password: 12345
+        db: rebrain_courses_db
+        query: |
+          GRANT ALL PRIVILEGES ON ALL TABLES in SCHEMA rebrain_portal TO rebrain_portal;
+
+    - name: 26. Dump database
+      become_user: postgres
+      community.postgresql.postgresql_db:
+        login_host: localhost
+        login_user: root
+        login_password: 12345
+        name: rebrain_courses_db
+        state: dump
+        target: /tmp/rebrain_courses_db_task04.sql.bqp
+
+

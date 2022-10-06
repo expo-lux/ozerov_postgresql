@@ -1,0 +1,5 @@
+[postgres]
+188.166.26.12 ansible_become_pass=rlpgobhudgdb ansible_user=user
+
+[runner]
+localhost
